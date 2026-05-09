@@ -1,4 +1,4 @@
--- Rayflare by Vhyse | v1.4
+-- Rayflare by Vhyse | v1.5
 
 local Rayflare = {
     Settings = {
@@ -77,7 +77,6 @@ local function GetClosestTarget()
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Rayflare.Settings.AimPart) then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 and not IsTeamIgnored(player) then
-                -- Reverted to pure ViewportPoint (no inset math) for perfect accuracy
                 local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[Rayflare.Settings.AimPart].Position)
                 
                 if onScreen then
@@ -206,14 +205,25 @@ function Rayflare:Load()
                 
             elseif self.Settings.AimType == "Cursor" then
                 if mousemoverel then
-                    -- Reverted to pure ViewportPoint delta logic
                     local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPos)
                     if onScreen then
                         local deltaX = screenPos.X - mousePos.X
                         local deltaY = screenPos.Y - mousePos.Y
                         
-                        local smoothFactor = math.max(self.Settings.Smoothness, 1) 
-                        mousemoverel(deltaX / smoothFactor, deltaY / smoothFactor)
+                        if self.Settings.Smoothness <= 0 then
+                            mousemoverel(deltaX, deltaY)
+                        else
+                            local smoothFactor = self.Settings.Smoothness
+                            local moveX = deltaX / smoothFactor
+                            local moveY = deltaY / smoothFactor
+                            
+                            -- [ v1.5 Anti-Stall Fix ]
+                            -- If the remaining distance is smaller than the smooth factor, it forces the cursor to snap the rest of the way to prevent sub-pixel stalling.
+                            if math.abs(deltaX) > 0 and math.abs(deltaX) <= smoothFactor then moveX = deltaX end
+                            if math.abs(deltaY) > 0 and math.abs(deltaY) <= smoothFactor then moveY = deltaY end
+                            
+                            mousemoverel(moveX, moveY)
+                        end
                     end
                 else
                     warn("[ Rayflare ] 'mousemoverel' is not supported by your executor. Cursor aim will not work.")
