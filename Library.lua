@@ -1,4 +1,4 @@
--- Rayflare by Vhyse | v1.3
+-- Rayflare by Vhyse | v1.4
 
 local Rayflare = {
     Settings = {
@@ -41,7 +41,6 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
-local GuiService = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -63,7 +62,6 @@ end
 --              UTILITY FUNCTIONS             --
 -- ========================================== --
 
--- Pure Same-Team Verification
 local function IsTeamIgnored(player)
     if not Rayflare.Settings.TeamCheck.Enabled then return false end
     if not LocalPlayer.Team then return false end
@@ -79,12 +77,11 @@ local function GetClosestTarget()
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Rayflare.Settings.AimPart) then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 and not IsTeamIgnored(player) then
+                -- Reverted to pure ViewportPoint (no inset math) for perfect accuracy
                 local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[Rayflare.Settings.AimPart].Position)
                 
                 if onScreen then
-                    -- Fixes the distance calculation to properly account for the Roblox GUI inset
-                    local inset = GuiService:GetGuiInset()
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y + inset.Y) - mousePos).Magnitude
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
                     
                     if dist < shortestDistance then
                         shortestDistance = dist
@@ -209,12 +206,11 @@ function Rayflare:Load()
                 
             elseif self.Settings.AimType == "Cursor" then
                 if mousemoverel then
+                    -- Reverted to pure ViewportPoint delta logic
                     local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPos)
                     if onScreen then
-                        -- Fixes the 10-stud offset bug perfectly 
-                        local inset = GuiService:GetGuiInset()
                         local deltaX = screenPos.X - mousePos.X
-                        local deltaY = (screenPos.Y + inset.Y) - mousePos.Y
+                        local deltaY = screenPos.Y - mousePos.Y
                         
                         local smoothFactor = math.max(self.Settings.Smoothness, 1) 
                         mousemoverel(deltaX / smoothFactor, deltaY / smoothFactor)
