@@ -1,16 +1,16 @@
--- Rayflare by Vhyse | v1.1
+-- Rayflare by Vhyse | v1.2
 
 local Aimbot = {
     Settings = {
         Enabled = false,
-        AimPart = "Head", -- E.g., "Head", "HumanoidRootPart"
-        AimType = "Camera", -- Options: "Camera", "Cursor"
-        Smoothness = 5, -- 0 = Instant Snap (Camera only). Higher = Slower
+        AimPart = "Head", 
+        AimType = "Camera", 
+        Smoothness = 5, 
         
         Trigger = {
-            TriggerKey = Enum.UserInputType.MouseButton2, -- Default to Right Click
-            TriggerMode = "Hold", -- Options: "Always", "Hold", "Toggle"
-            IsAiming = false -- Internal state
+            TriggerKey = Enum.UserInputType.MouseButton2, 
+            TriggerMode = "Hold", 
+            IsAiming = false 
         },
 
         FOV = {
@@ -20,9 +20,9 @@ local Aimbot = {
             Chroma = false
         },
         
+        -- [ v1.2 UPDATE: Simplified Team Check ]
         TeamCheck = {
-            Enabled = true,
-            IgnoredTeams = {} 
+            Enabled = true
         },
         
         Prediction = {
@@ -63,16 +63,13 @@ end
 --              UTILITY FUNCTIONS             --
 -- ========================================== --
 
+-- [ v1.2 UPDATE: Pure Same-Team Verification ]
 local function IsTeamIgnored(player)
     if not Aimbot.Settings.TeamCheck.Enabled then return false end
-    if not player.Team then return false end
+    if not LocalPlayer.Team then return false end
     
-    for _, teamName in ipairs(Aimbot.Settings.TeamCheck.IgnoredTeams) do
-        if player.Team.Name == teamName then
-            return true
-        end
-    end
-    return false
+    -- Returns true if the target is on the exact same team as the LocalPlayer
+    return player.Team == LocalPlayer.Team
 end
 
 local function GetClosestTarget()
@@ -84,8 +81,8 @@ local function GetClosestTarget()
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Aimbot.Settings.AimPart) then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 and not IsTeamIgnored(player) then
-                local targetPart = player.Character[Aimbot.Settings.AimPart]
-                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+                -- Use WorldToViewportPoint for FOV distance checking to avoid UI inset distortion
+                local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[Aimbot.Settings.AimPart].Position)
                 
                 if onScreen then
                     local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
@@ -145,7 +142,6 @@ function Aimbot:Load()
     end)
 
     self.Connections.InputEnded = UserInputService.InputEnded:Connect(function(input)
-        -- Note: We intentionally skip gameProcessed here so the aimbot doesn't get stuck if you release the key over a UI
         local isTriggerKey = (input.UserInputType == self.Settings.Trigger.TriggerKey) or (input.KeyCode == self.Settings.Trigger.TriggerKey)
         
         if isTriggerKey then
@@ -159,7 +155,7 @@ function Aimbot:Load()
     self.Connections.RenderLoop = RunService.RenderStepped:Connect(function(deltaTime)
         local mousePos = UserInputService:GetMouseLocation()
 
-        -- 1. Update FOV Circle (Always updates if Enabled, even if not actively holding the trigger)
+        -- 1. Update FOV Circle
         if self.FOVCircle then
             if self.Settings.Enabled and self.Settings.FOV.Visible then
                 self.FOVCircle.Visible = true
@@ -183,7 +179,6 @@ function Aimbot:Load()
             return 
         end
 
-        -- If mode is "Always", bypass the trigger system. Otherwise, check if we are aiming.
         local shouldAim = (self.Settings.Trigger.TriggerMode == "Always") or self.Settings.Trigger.IsAiming
         
         if not shouldAim then
@@ -214,7 +209,8 @@ function Aimbot:Load()
                 
             elseif self.Settings.AimType == "Cursor" then
                 if mousemoverel then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPos)
+                    -- [ v1.2 UPDATE: Using WorldToScreenPoint to factor in the GUI Topbar Inset perfectly ]
+                    local screenPos, onScreen = Camera:WorldToScreenPoint(predictedPos)
                     if onScreen then
                         local deltaX = screenPos.X - mousePos.X
                         local deltaY = screenPos.Y - mousePos.Y
