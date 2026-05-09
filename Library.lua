@@ -1,6 +1,6 @@
--- Rayflare by Vhyse | v1.2
+-- Rayflare by Vhyse | v1.3
 
-local Aimbot = {
+local Rayflare = {
     Settings = {
         Enabled = false,
         AimPart = "Head", 
@@ -20,7 +20,6 @@ local Aimbot = {
             Chroma = false
         },
         
-        -- [ v1.2 UPDATE: Simplified Team Check ]
         TeamCheck = {
             Enabled = true
         },
@@ -42,6 +41,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+local GuiService = game:GetService("GuiService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -51,10 +51,10 @@ local Camera = Workspace.CurrentCamera
 -- ========================================== --
 
 if Drawing then
-    Aimbot.FOVCircle = Drawing.new("Circle")
-    Aimbot.FOVCircle.Thickness = 1.5
-    Aimbot.FOVCircle.Filled = false
-    Aimbot.FOVCircle.Transparency = 1
+    Rayflare.FOVCircle = Drawing.new("Circle")
+    Rayflare.FOVCircle.Thickness = 1.5
+    Rayflare.FOVCircle.Filled = false
+    Rayflare.FOVCircle.Transparency = 1
 else
     warn("[ Rayflare ] Executor does not support Drawing API. FOV Circle will not render.")
 end
@@ -63,29 +63,29 @@ end
 --              UTILITY FUNCTIONS             --
 -- ========================================== --
 
--- [ v1.2 UPDATE: Pure Same-Team Verification ]
+-- Pure Same-Team Verification
 local function IsTeamIgnored(player)
-    if not Aimbot.Settings.TeamCheck.Enabled then return false end
+    if not Rayflare.Settings.TeamCheck.Enabled then return false end
     if not LocalPlayer.Team then return false end
-    
-    -- Returns true if the target is on the exact same team as the LocalPlayer
     return player.Team == LocalPlayer.Team
 end
 
 local function GetClosestTarget()
     local closestPlayer = nil
-    local shortestDistance = Aimbot.Settings.FOV.Radius
+    local shortestDistance = Rayflare.Settings.FOV.Radius
     local mousePos = UserInputService:GetMouseLocation()
 
     for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Aimbot.Settings.AimPart) then
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(Rayflare.Settings.AimPart) then
             local humanoid = player.Character:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 and not IsTeamIgnored(player) then
-                -- Use WorldToViewportPoint for FOV distance checking to avoid UI inset distortion
-                local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[Aimbot.Settings.AimPart].Position)
+                local screenPos, onScreen = Camera:WorldToViewportPoint(player.Character[Rayflare.Settings.AimPart].Position)
                 
                 if onScreen then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                    -- Fixes the distance calculation to properly account for the Roblox GUI inset
+                    local inset = GuiService:GetGuiInset()
+                    local dist = (Vector2.new(screenPos.X, screenPos.Y + inset.Y) - mousePos).Magnitude
+                    
                     if dist < shortestDistance then
                         shortestDistance = dist
                         closestPlayer = player
@@ -101,11 +101,11 @@ end
 local function GetPredictedPosition(targetPart)
     local pos = targetPart.Position
     
-    if Aimbot.Settings.Prediction.Enabled then
+    if Rayflare.Settings.Prediction.Enabled then
         local velocity = targetPart.AssemblyLinearVelocity
-        local predX, predY = Aimbot.Settings.Prediction.X, Aimbot.Settings.Prediction.Y
+        local predX, predY = Rayflare.Settings.Prediction.X, Rayflare.Settings.Prediction.Y
         
-        if Aimbot.Settings.Prediction.Dynamic then
+        if Rayflare.Settings.Prediction.Dynamic then
             local speed = velocity.Magnitude
             local dynamicFactor = speed / 150 
             predX = math.clamp(dynamicFactor, 0.05, 0.5)
@@ -122,7 +122,7 @@ end
 --                MAIN ENGINE                 --
 -- ========================================== --
 
-function Aimbot:Load()
+function Rayflare:Load()
     if self.Connections.RenderLoop then return end 
     
     -- [ INPUT HANDLING FOR TRIGGER ]
@@ -209,11 +209,12 @@ function Aimbot:Load()
                 
             elseif self.Settings.AimType == "Cursor" then
                 if mousemoverel then
-                    -- [ v1.2 UPDATE: Using WorldToScreenPoint to factor in the GUI Topbar Inset perfectly ]
-                    local screenPos, onScreen = Camera:WorldToScreenPoint(predictedPos)
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(predictedPos)
                     if onScreen then
+                        -- Fixes the 10-stud offset bug perfectly 
+                        local inset = GuiService:GetGuiInset()
                         local deltaX = screenPos.X - mousePos.X
-                        local deltaY = screenPos.Y - mousePos.Y
+                        local deltaY = (screenPos.Y + inset.Y) - mousePos.Y
                         
                         local smoothFactor = math.max(self.Settings.Smoothness, 1) 
                         mousemoverel(deltaX / smoothFactor, deltaY / smoothFactor)
@@ -233,7 +234,7 @@ end
 --              DESTRUCTION API               --
 -- ========================================== --
 
-function Aimbot:Unload()
+function Rayflare:Unload()
     for name, connection in pairs(self.Connections) do
         if connection then
             connection:Disconnect()
@@ -251,4 +252,4 @@ function Aimbot:Unload()
     print("[ Rayflare ] Engine unloaded and memory cleared.")
 end
 
-return Aimbot
+return Rayflare
